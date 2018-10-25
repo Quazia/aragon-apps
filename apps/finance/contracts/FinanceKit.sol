@@ -68,7 +68,7 @@ contract FinanceKit is KitBase {
 
     function newInstance()
         public
-        returns (Kernel dao, Finance finance)
+        returns (Kernel dao)
     {
         address root = msg.sender;
         address employer = msg.sender;
@@ -83,19 +83,13 @@ contract FinanceKit is KitBase {
 
         Vault vault;
         TokenManager tokenManager;
+        Finance finance;
 
 
         (vault, finance, tokenManager) = deployApps(dao);
 
         // Change the tokens controller before initializing the manager
         token.changeController(tokenManager);
-
-        // Initialize Apps
-
-        tokenManager.initialize(token, true, 0);
-
-        vault.initialize();
-        finance.initialize(vault, financePeriodDuration);
 
         // Setup the permissions for the Token Manager
         acl.createPermission(ANY_ENTITY, tokenManager, tokenManager.MINT_ROLE(), root);
@@ -104,21 +98,25 @@ contract FinanceKit is KitBase {
         acl.createPermission(root, tokenManager, tokenManager.REVOKE_VESTINGS_ROLE(), root);
         acl.createPermission(root, tokenManager, tokenManager.BURN_ROLE(), root);
 
-
+        // Setup the permissions for the Finance App
         acl.createPermission(root, finance, finance.CREATE_PAYMENTS_ROLE(), root);
         acl.createPermission(root, finance, finance.CHANGE_PERIOD_ROLE(), root);
         acl.createPermission(root, finance, finance.CHANGE_BUDGETS_ROLE(), root);
         acl.createPermission(root, finance, finance.EXECUTE_PAYMENTS_ROLE(), root);
         acl.createPermission(root, finance, finance.MANAGE_PAYMENTS_ROLE(), root);
         
+        // Setup the permissions for the vault
+        acl.createPermission(ANY_ENTITY, vault, vault.TRANSFER_ROLE(), ANY_ENTITY); 
 
-        setupVault(acl, vault, root, address(token));
+        // Initialize Apps
+        tokenManager.initialize(token, true, 0);
+        vault.initialize();
+        finance.initialize(vault, financePeriodDuration);
 
         tokenManager.mint(this, 10000000);
         token.approve(finance, 10000000);
         address(finance).send(10 ether);
-        //finance.deposit.value(10000000)(0x0, 10000000, "initial funds");
-        //finance.deposit(token, 10000000, "Initial funds");
+        finance.deposit(token, 10000000, "Initial funds");
 
         cleanupDAOPermissions(dao, acl, root);
 
@@ -142,12 +140,7 @@ contract FinanceKit is KitBase {
         return (vault, finance, tokenManager);
     }
 
-    function setupVault(ACL acl, Vault vault, address root, address token) internal {
-        bytes32 vaultTransferRole = vault.TRANSFER_ROLE();
-        acl.createPermission(this, vault, vaultTransferRole, this); // manager is this to allow 2 grants
-        acl.grantPermission(root, vault, vaultTransferRole);
-        acl.setPermissionManager(root, vault, vaultTransferRole); // set root as the final manager for the role
-    }
+
 
 
 }
